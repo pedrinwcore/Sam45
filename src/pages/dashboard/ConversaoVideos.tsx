@@ -559,11 +559,11 @@ const ConversaoVideos: React.FC = () => {
                     <td className="py-3 px-4 text-center">
                       <div className="flex flex-col items-center">
                         <span className={`font-medium ${
-                          (video.bitrate_original || video.current_bitrate) > video.user_bitrate_limit ? 'text-red-600' : 'text-gray-900'
+                          (video.bitrate_video || video.current_bitrate) > video.user_bitrate_limit ? 'text-red-600' : 'text-gray-900'
                         }`}>
-                          {video.bitrate_original || video.current_bitrate || 'N/A'} kbps
+                          {video.bitrate_video || video.current_bitrate || 'N/A'} kbps
                         </span>
-                        {(video.bitrate_original || video.current_bitrate) > video.user_bitrate_limit && (
+                        {(video.bitrate_video || video.current_bitrate) > video.user_bitrate_limit && (
                           <span className="text-xs text-red-600">
                             Limite: {video.user_bitrate_limit} kbps
                           </span>

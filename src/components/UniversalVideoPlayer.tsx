@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Download, Share2, Wifi, WifiOff, Activity, Eye, Clock, RotateCcw } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings, Download, Share2, Wifi, WifiOff, Activity, Eye, Clock, RotateCcw, AlertCircle } from 'lucide-react';
 
 interface UniversalVideoPlayerProps {
   src?: string;
@@ -40,6 +40,9 @@ interface UniversalVideoPlayerProps {
     opacity: number;
     size?: 'small' | 'medium' | 'large';
   };
+  // Informações de bitrate para validação
+  videoBitrate?: number;
+  userBitrateLimit?: number;
 }
 
 const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
@@ -62,7 +65,9 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
   onError,
   streamStats,
   qualityLevels,
-  watermark
+  watermark,
+  videoBitrate,
+  userBitrateLimit
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -811,6 +816,20 @@ const UniversalVideoPlayer: React.FC<UniversalVideoPlayerProps> = ({
         </div>
       )}
 
+      {/* Aviso de bitrate excedido */}
+      {videoBitrate && userBitrateLimit && videoBitrate > userBitrateLimit && (
+        <div className="absolute top-16 left-4 z-20 bg-red-600 text-white px-3 py-2 rounded-md text-sm max-w-xs">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-4 w-4" />
+            <div>
+              <p className="font-medium">Bitrate Alto</p>
+              <p className="text-xs opacity-90">
+                {videoBitrate} kbps {'>'} {userBitrateLimit} kbps
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Controles customizados */}
       {controls && (
         <div

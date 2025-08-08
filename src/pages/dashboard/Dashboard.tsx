@@ -6,7 +6,7 @@ import VideoPlayer from '../../components/VideoPlayer';
 import {
   Settings, Users, BarChart, FileVideo,
   PlayCircle, Play, Smartphone, RefreshCw, Radio, Square,
-  FolderPlus, Calendar, Youtube, Wifi, ArrowLeftRight, 
+  FolderPlus, Calendar, Youtube, Wifi, ArrowLeftRight,
   Megaphone, Activity, Clock, Eye, Zap, Server, AlertCircle, HardDrive
 } from 'lucide-react';
 
@@ -55,10 +55,10 @@ const Dashboard: React.FC = () => {
     const wowzaHost = isProduction ? 'samhost.wcore.com.br' : '51.222.156.223';
     const wowzaUser = 'admin';
     const wowzaPassword = 'FK38Ca2SuE6jvJXed97VMn';
-    
+
     if (video.videos.url) {
       let externalUrl;
-      
+
       // Para vídeos SSH, construir URL direta
       if (video.videos.url.includes('/api/videos-ssh/')) {
         try {
@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
       } else {
         externalUrl = video.videos.url;
       }
-      
+
       window.open(externalUrl, '_blank');
     }
   };
@@ -105,18 +105,18 @@ const Dashboard: React.FC = () => {
       const foldersResponse = await fetch('/api/folders', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (foldersResponse.ok) {
         const folders = await foldersResponse.json();
         let totalUsed = 0;
-        
+
         // Para cada pasta, buscar o uso via API SSH
         for (const folder of folders) {
           try {
             const usageResponse = await fetch(`/api/videos-ssh/folders/${folder.id}/usage`, {
               headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             if (usageResponse.ok) {
               const usageData = await usageResponse.json();
               if (usageData.success) {
@@ -127,10 +127,10 @@ const Dashboard: React.FC = () => {
             console.warn(`Erro ao carregar uso da pasta ${folder.id}:`, error);
           }
         }
-        
+
         const total = user.espaco || 0;
         const percentage = total > 0 ? Math.round((totalUsed / total) * 100) : 0;
-        
+
         setStorageData({
           used: totalUsed,
           total: total,
@@ -145,7 +145,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     loadPlaylists();
     checkOBSStatus();
-    
+
     // Atualizar status OBS a cada 30 segundos
     const interval = setInterval(checkOBSStatus, 30000);
     return () => clearInterval(interval);
@@ -164,13 +164,15 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const userLogin = user?.email ? user.email.split('@')[0] : '';
+
   const checkOBSStatus = async () => {
     try {
       const token = await getToken();
       const response = await fetch('/api/streaming/obs-status', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -190,7 +192,7 @@ const Dashboard: React.FC = () => {
 
   const stopOBSStream = async () => {
     if (!confirm('Deseja realmente finalizar a transmissão OBS?')) return;
-    
+
     try {
       const token = await getToken();
       const response = await fetch('/api/streaming/obs-stop', {
@@ -200,9 +202,9 @@ const Dashboard: React.FC = () => {
           Authorization: `Bearer ${token}`
         }
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
         // toast.success('Transmissão OBS finalizada com sucesso!');
         checkOBSStatus();
@@ -217,13 +219,13 @@ const Dashboard: React.FC = () => {
   // Função otimizada para vídeos SSH
   const buildOptimizedSSHUrl = (url: string) => {
     if (!url.includes('/api/videos-ssh/stream/')) return url;
-    
+
     const videoId = url.split('/stream/')[1]?.split('?')[0];
     if (videoId) {
       const token = localStorage.getItem('auth_token');
       return `/api/videos-ssh/proxy-stream/${videoId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
     }
-    
+
     return url;
   };
 
@@ -234,38 +236,38 @@ const Dashboard: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
-      
+
       // Processar vídeos para usar URLs HLS
       const processedVideos = data.map((item: any) => {
         const video = item.videos;
-        
+
         // Construir URL HLS correta
         let videoUrl = video.url;
-        
+
         if (videoUrl && !videoUrl.startsWith('http')) {
           const cleanPath = videoUrl.replace(/^\/+/, '');
           const pathParts = cleanPath.split('/');
-          
+
           if (pathParts.length >= 3) {
             const userLogin = pathParts[0];
             const folderName = pathParts[1];
             const fileName = pathParts[2];
-            
+
             // Verificar se é MP4 ou precisa de conversão
             const fileExtension = fileName.split('.').pop()?.toLowerCase();
             const needsConversion = !['mp4'].includes(fileExtension || '');
-            
+
             // Nome do arquivo final (MP4)
-            const finalFileName = needsConversion ? 
+            const finalFileName = needsConversion ?
               fileName.replace(/\.[^/.]+$/, '.mp4') : fileName;
-            
+
             // Construir URL HLS correta
             const isProduction = window.location.hostname !== 'localhost';
             const wowzaHost = isProduction ? 'samhost.wcore.com.br' : '51.222.156.223';
             videoUrl = `http://${wowzaHost}:1935/vod/_definst_/mp4:${userLogin}/${folderName}/${finalFileName}/playlist.m3u8`;
           }
         }
-        
+
         return {
           ...item,
           videos: {
@@ -274,7 +276,7 @@ const Dashboard: React.FC = () => {
           }
         };
       });
-      
+
       setPlaylistVideos(processedVideos);
       return data;
     } catch (error) {
@@ -354,17 +356,17 @@ const Dashboard: React.FC = () => {
   // Função para construir URL de vídeo
   const buildVideoUrl = (url: string) => {
     if (!url) return '';
-    
+
     // Se já é uma URL completa, usar como está
     if (url.startsWith('http')) {
       return url;
     }
-    
+
     // Para vídeos SSH, usar URL diretamente
     if (url.includes('/api/videos-ssh/')) {
       return url;
     }
-    
+
     // Todos os vídeos agora são MP4, usar proxy /content do backend
     const cleanPath = url.replace(/^\/+/, '');
     return `/content/${cleanPath}`;
@@ -374,17 +376,28 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        
+
         {hasActiveTransmission && (
           <div className="px-4 py-2 rounded-full flex items-center space-x-2 bg-green-100 text-green-600">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="font-medium">
               {streamData.isLive && obsStatus?.is_live ? 'Múltiplas Transmissões' :
-               streamData.isLive ? 'Transmissão Playlist' :
-               obsStatus?.is_live ? 'Transmissão OBS' : 'Transmissão Ativa'}
+                streamData.isLive ? 'Transmissão Playlist' :
+                  obsStatus?.is_live ? 'Transmissão OBS' : 'Transmissão Ativa'}
             </span>
           </div>
         )}
+
+        {/* Link para conversão de vídeos */}
+        <div className="mt-3">
+          <Link
+            to="/dashboard/conversao-videos"
+            className="text-xs text-orange-700 hover:text-orange-900 underline flex items-center"
+          >
+            <Settings className="h-3 w-3 mr-1" />
+            Otimizar vídeos para economizar espaço
+          </Link>
+        </div>
       </div>
 
       {/* Status das Transmissões Ativas */}
@@ -567,9 +580,8 @@ const Dashboard: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">{user?.nome || 'Usuário'}</h3>
                   <p className="text-sm text-gray-600">{user?.email?.split('@')[0] || 'login'}</p>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                    user?.tipo === 'revenda' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                  }`}>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${user?.tipo === 'revenda' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                    }`}>
                     {user?.tipo === 'revenda' ? 'Revenda' : 'Streaming'}
                   </span>
                 </div>
@@ -620,15 +632,14 @@ const Dashboard: React.FC = () => {
                   <HardDrive className="h-5 w-5 text-orange-600 mr-2" />
                   <span className="text-sm font-medium text-orange-800">Armazenamento</span>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                  storageData.percentage > 90 ? 'bg-red-100 text-red-800' :
-                  storageData.percentage > 70 ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-green-100 text-green-800'
-                }`}>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${storageData.percentage > 90 ? 'bg-red-100 text-red-800' :
+                    storageData.percentage > 70 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                  }`}>
                   {storageData.percentage}% usado
                 </span>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm text-orange-700">Usado:</span>
@@ -640,24 +651,22 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="w-full bg-orange-200 rounded-full h-2">
                   <div
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      storageData.percentage > 90 ? 'bg-red-600' :
-                      storageData.percentage > 70 ? 'bg-yellow-600' :
-                      'bg-orange-600'
-                    }`}
+                    className={`h-2 rounded-full transition-all duration-300 ${storageData.percentage > 90 ? 'bg-red-600' :
+                        storageData.percentage > 70 ? 'bg-yellow-600' :
+                          'bg-orange-600'
+                      }`}
                     style={{ width: `${Math.min(100, storageData.percentage)}%` }}
                   ></div>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm text-orange-700">Disponível:</span>
-                  <span className={`font-semibold ${
-                    storageData.total - storageData.used > 100 ? 'text-green-700' : 'text-red-700'
-                  }`}>
+                  <span className={`font-semibold ${storageData.total - storageData.used > 100 ? 'text-green-700' : 'text-red-700'
+                    }`}>
                     {storageData.total - storageData.used} MB
                   </span>
                 </div>
               </div>
-              
+
               {storageData.percentage > 90 && (
                 <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-md">
                   <p className="text-xs text-red-800">
@@ -725,7 +734,7 @@ const Dashboard: React.FC = () => {
               controls={true}
               height="h-full"
             />
-            
+
             {/* Overlay para playlist */}
             {isPlayingPlaylist && getCurrentVideo() && (
               <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-3 py-1 rounded-md text-sm">
@@ -738,7 +747,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             )}
-            
+
             {/* Overlay para OBS */}
             {obsStatus?.is_live && !isPlayingPlaylist && (
               <div className="absolute top-2 left-2 bg-black bg-opacity-70 text-white px-3 py-1 rounded-md text-sm">
@@ -954,15 +963,15 @@ const Dashboard: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Selecionar Playlist</h3>
-            
+
             {hasActiveTransmission && (
               <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                 <p className="text-yellow-800 text-sm">
-                  ⚠️ {streamData.isLive && obsStatus?.is_live ? 
+                  ⚠️ {streamData.isLive && obsStatus?.is_live ?
                     'Há transmissões ativas (Playlist + OBS). A nova playlist será reproduzida localmente.' :
-                    streamData.isLive ? 
-                    'Há uma transmissão de playlist ativa. A nova playlist será reproduzida localmente.' :
-                    'Há uma transmissão OBS ativa. A playlist será reproduzida localmente.'}
+                    streamData.isLive ?
+                      'Há uma transmissão de playlist ativa. A nova playlist será reproduzida localmente.' :
+                      'Há uma transmissão OBS ativa. A playlist será reproduzida localmente.'}
                 </p>
               </div>
             )}

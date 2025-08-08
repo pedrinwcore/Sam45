@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Upload, Play, Trash2, FolderPlus, Eye, Download, RefreshCw, HardDrive, AlertCircle, CheckCircle, X, Edit2, ChevronDown, ChevronRight, Folder, Video, Save, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Upload, Play, Trash2, FolderPlus, Eye, Download, RefreshCw, HardDrive, AlertCircle, CheckCircle, X, Edit2, ChevronDown, ChevronRight, Folder, Video, Save, ExternalLink, Zap, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +15,11 @@ interface Video {
   url: string;
   duracao?: number;
   tamanho?: number;
+  bitrate_video?: number;
+  formato_original?: string;
+  is_mp4?: boolean;
+  user_bitrate_limit?: number;
+  bitrate_exceeds_limit?: boolean;
   folder?: string;
   user?: string;
 }
@@ -24,6 +29,15 @@ interface FolderUsage {
   total: number;
   percentage: number;
   available: number;
+}
+
+interface UploadProgress {
+  fileName: string;
+  progress: number;
+  status: 'uploading' | 'processing' | 'completed' | 'error';
+  error?: string;
+  size?: number;
+  uploadedSize?: number;
 }
 
 const GerenciarVideos: React.FC = () => {
@@ -36,6 +50,8 @@ const GerenciarVideos: React.FC = () => {
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [folderUsages, setFolderUsages] = useState<Record<number, FolderUsage>>({});
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   
   // Player modal state - player simples
   const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -150,6 +166,17 @@ const GerenciarVideos: React.FC = () => {
     }
 
     setUploading(true);
+    setShowUploadModal(true);
+    
+    // Inicializar progresso
+    const initialProgress: UploadProgress = {
+      fileName: file.name,
+      progress: 0,
+      status: 'uploading',
+      size: file.size,
+      uploadedSize: 0
+    };
+    setUploadProgress([initialProgress]);
 
     try {
       const token = await getToken();
@@ -158,26 +185,78 @@ const GerenciarVideos: React.FC = () => {
       formData.append('duracao', '0');
       formData.append('tamanho', file.size.toString());
 
-      const response = await fetch(`/api/videos/upload?folder_id=${folderId}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData
+      // Criar XMLHttpRequest para monitorar progresso
+      const xhr = new XMLHttpRequest();
+      
+      // Monitorar progresso do upload
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress([{
+            ...initialProgress,
+            progress: percentComplete,
+            uploadedSize: e.loaded,
+            status: percentComplete === 100 ? 'processing' : 'uploading'
+          }]);
+        }
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        toast.success(`Vídeo "${result.nome}" enviado com sucesso!`);
-        await loadVideosForFolder(folderId);
-        await loadFolderUsage(folderId);
-        
-        // Reset input
-        event.target.value = '';
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || 'Erro no upload');
-      }
+      // Configurar requisição
+      xhr.open('POST', `/api/videos/upload?folder_id=${folderId}`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      
+      // Tratar resposta
+      xhr.onload = async () => {
+        if (xhr.status === 201) {
+          const result = JSON.parse(xhr.responseText);
+          setUploadProgress([{
+            ...initialProgress,
+            progress: 100,
+            status: 'completed'
+          }]);
+          
+          toast.success(`Vídeo "${result.nome}" enviado com sucesso!`);
+          await loadVideosForFolder(folderId);
+          await loadFolderUsage(folderId);
+          
+          // Reset input
+          event.target.value = '';
+          
+          // Fechar modal após 2 segundos
+          setTimeout(() => {
+            setShowUploadModal(false);
+            setUploadProgress([]);
+          }, 2000);
+        } else {
+          const errorData = JSON.parse(xhr.responseText);
+          setUploadProgress([{
+            ...initialProgress,
+            status: 'error',
+            error: errorData.error || 'Erro no upload'
+          }]);
+          toast.error(errorData.error || 'Erro no upload');
+        }
+      };
+      
+      xhr.onerror = () => {
+        setUploadProgress([{
+          ...initialProgress,
+          status: 'error',
+          error: 'Erro de conexão durante o upload'
+        }]);
+        toast.error('Erro de conexão durante o upload');
+      };
+      
+      // Enviar arquivo
+      xhr.send(formData);
+      
     } catch (error) {
       console.error('Erro no upload:', error);
+      setUploadProgress([{
+        ...initialProgress,
+        status: 'error',
+        error: 'Erro inesperado durante o upload'
+      }]);
       toast.error('Erro no upload do vídeo');
     } finally {
       setUploading(false);
@@ -554,17 +633,55 @@ const GerenciarVideos: React.FC = () => {
                                         <h4 className="font-medium text-gray-900 truncate" title={video.nome}>
                                           {video.nome}
                                         </h4>
-                                        <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                                        <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1 flex-wrap">
                                           {video.duracao && (
                                             <span>⏱️ {formatDuration(video.duracao)}</span>
                                           )}
                                           {video.tamanho && (
                                             <span>💾 {formatFileSize(video.tamanho)}</span>
                                           )}
-                                          {video.bitrate_original && (
-                                            <span>📊 {video.bitrate_original} kbps</span>
+                                          {video.bitrate_video && (
+                                            <div className="flex items-center space-x-1">
+                                              <Zap className="h-3 w-3" />
+                                              <span className={`font-medium ${
+                                                video.bitrate_exceeds_limit ? 'text-red-600' : 'text-gray-600'
+                                              }`}>
+                                                {video.bitrate_video} kbps
+                                              </span>
+                                              {video.bitrate_exceeds_limit && (
+                                                <span className="text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
+                                                  EXCEDE LIMITE
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                          {video.formato_original && (
+                                            <span className={`text-xs px-2 py-1 rounded ${
+                                              video.is_mp4 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                              {video.formato_original.toUpperCase()}
+                                            </span>
                                           )}
                                         </div>
+                                        
+                                        {/* Aviso de conversão necessária */}
+                                        {video.bitrate_exceeds_limit && (
+                                          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                                            <div className="flex items-center text-xs text-red-800">
+                                              <AlertCircle className="h-3 w-3 mr-1" />
+                                              <span>
+                                                Bitrate {video.bitrate_video} kbps excede o limite do plano ({video.user_bitrate_limit} kbps).
+                                              </span>
+                                            </div>
+                                            <Link 
+                                              to="/dashboard/conversao-videos"
+                                              className="text-xs text-red-700 hover:text-red-900 underline mt-1 inline-flex items-center"
+                                            >
+                                              <Settings className="h-3 w-3 mr-1" />
+                                              Converter vídeo
+                                            </Link>
+                                          </div>
+                                        )}
                                       </>
                                     )}
                                   </div>
@@ -588,6 +705,16 @@ const GerenciarVideos: React.FC = () => {
                                     >
                                       <ExternalLink className="h-4 w-4" />
                                     </button>
+                                    
+                                    {video.bitrate_exceeds_limit && (
+                                      <Link
+                                        to="/dashboard/conversao-videos"
+                                        className="text-orange-600 hover:text-orange-800 p-2 rounded-md hover:bg-orange-50 transition-colors"
+                                        title="Converter vídeo"
+                                      >
+                                        <Settings className="h-4 w-4" />
+                                      </Link>
+                                    )}
                                     
                                     <button
                                       onClick={() => handleEditVideo(video)}
@@ -683,6 +810,113 @@ const GerenciarVideos: React.FC = () => {
         </div>
       )}
 
+      {/* Modal de Progresso de Upload */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold">Enviando Vídeo</h3>
+                {uploadProgress[0]?.status === 'completed' && (
+                  <button
+                    onClick={() => {
+                      setShowUploadModal(false);
+                      setUploadProgress([]);
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6">
+              {uploadProgress.map((progress, index) => (
+                <div key={index} className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {progress.fileName}
+                      </p>
+                      <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                        {progress.size && (
+                          <span>Tamanho: {formatFileSize(progress.size)}</span>
+                        )}
+                        {progress.uploadedSize && progress.size && (
+                          <span>• Enviado: {formatFileSize(progress.uploadedSize)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="ml-4 flex items-center">
+                      {progress.status === 'uploading' && (
+                        <Upload className="h-4 w-4 text-blue-600 animate-pulse" />
+                      )}
+                      {progress.status === 'processing' && (
+                        <RefreshCw className="h-4 w-4 text-yellow-600 animate-spin" />
+                      )}
+                      {progress.status === 'completed' && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
+                      {progress.status === 'error' && (
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Barra de progresso */}
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        progress.status === 'completed' ? 'bg-green-600' :
+                        progress.status === 'error' ? 'bg-red-600' :
+                        progress.status === 'processing' ? 'bg-yellow-600' :
+                        'bg-blue-600'
+                      }`}
+                      style={{ width: `${progress.progress}%` }}
+                    ></div>
+                  </div>
+
+                  {/* Status text */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className={`font-medium ${
+                      progress.status === 'completed' ? 'text-green-600' :
+                      progress.status === 'error' ? 'text-red-600' :
+                      progress.status === 'processing' ? 'text-yellow-600' :
+                      'text-blue-600'
+                    }`}>
+                      {progress.status === 'uploading' ? 'Enviando...' :
+                       progress.status === 'processing' ? 'Processando no servidor...' :
+                       progress.status === 'completed' ? 'Upload concluído!' :
+                       'Erro no upload'}
+                    </span>
+                    <span className="text-gray-500">
+                      {progress.progress}%
+                    </span>
+                  </div>
+
+                  {/* Erro details */}
+                  {progress.status === 'error' && progress.error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-red-800 text-sm">{progress.error}</p>
+                    </div>
+                  )}
+
+                  {/* Success details */}
+                  {progress.status === 'completed' && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-green-800 text-sm">
+                        ✅ Vídeo enviado com sucesso para o servidor!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal do Player Simples */}
       {showPlayerModal && currentVideo && (
         <div 
@@ -749,6 +983,9 @@ const GerenciarVideos: React.FC = () => {
               <li>• Vídeos são automaticamente convertidos para MP4 se necessário</li>
               <li>• Use "Sincronizar" para atualizar a lista com vídeos enviados via FTP</li>
               <li>• Monitore o uso de espaço para não exceder seu plano</li>
+              <li>• <strong>Bitrate:</strong> Vídeos com bitrate acima do seu plano aparecerão em vermelho</li>
+              <li>• <strong>Conversão:</strong> Use a página "Conversão de Vídeos" para ajustar vídeos incompatíveis</li>
+              <li>• <strong>Progresso:</strong> Acompanhe o progresso de upload em tempo real</li>
             </ul>
           </div>
         </div>

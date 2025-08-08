@@ -101,6 +101,9 @@ router.get('/', authMiddleware, async (req, res) => {
     console.log(`📁 Buscando vídeos na pasta: ${folderName} (ID: ${folderId})`);
     console.log(`📊 Encontrados ${rows.length} vídeos no banco`);
 
+    // Buscar limite de bitrate do usuário
+    const userBitrateLimit = req.user.bitrate || 2500;
+
     const videos = rows.map(video => {
       // Construir URL correta baseada no caminho
       let url = video.url || video.caminho;
@@ -127,6 +130,9 @@ router.get('/', authMiddleware, async (req, res) => {
 
       console.log(`🎥 Vídeo: ${video.nome} -> URL: ${url}`);
 
+      // Verificar se bitrate excede o limite
+      const currentBitrate = video.bitrate_video || 0;
+      const bitrateExceedsLimit = currentBitrate > userBitrateLimit;
       return {
         id: video.id,
         nome: video.nome,
@@ -139,9 +145,8 @@ router.get('/', authMiddleware, async (req, res) => {
         compativel: video.compativel,
         folder: folderName,
         user: userLogin,
-        // Adicionar informações para validação de bitrate
-        user_bitrate_limit: req.user.bitrate || 2500,
-        bitrate_exceeds_limit: (video.bitrate_video || 0) > (req.user.bitrate || 2500)
+        user_bitrate_limit: userBitrateLimit,
+        bitrate_exceeds_limit: bitrateExceedsLimit
       };
     });
 
