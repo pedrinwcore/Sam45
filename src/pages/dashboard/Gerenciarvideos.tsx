@@ -20,6 +20,7 @@ interface Video {
   is_mp4?: boolean;
   user_bitrate_limit?: number;
   bitrate_exceeds_limit?: boolean;
+  format_incompatible?: boolean;
   folder?: string;
   user?: string;
 }
@@ -980,12 +981,19 @@ const GerenciarVideos: React.FC = () => {
               <li>• Clique na seta ao lado da pasta para expandir e ver os vídeos</li>
               <li>• Use os botões de ação para reproduzir, editar, visualizar ou excluir vídeos</li>
               <li>• Envie vídeos nos formatos: MP4, AVI, MOV, WMV, FLV, WebM, MKV, etc.</li>
-              <li>• Vídeos são automaticamente convertidos para MP4 se necessário</li>
+              <li>• <strong>IMPORTANTE:</strong> Apenas vídeos MP4 podem ser reproduzidos diretamente</li>
+              <li>• <strong>Vídeos não-MP4:</strong> Aparecem em vermelho e precisam ser convertidos</li>
               <li>• Use "Sincronizar" para atualizar a lista com vídeos enviados via FTP</li>
               <li>• Monitore o uso de espaço para não exceder seu plano</li>
               <li>• <strong>Bitrate:</strong> Vídeos com bitrate acima do seu plano aparecerão em vermelho</li>
               <li>• <strong>Conversão:</strong> Use a página "Conversão de Vídeos" para ajustar vídeos incompatíveis</li>
               <li>• <strong>Progresso:</strong> Acompanhe o progresso de upload em tempo real</li>
+              <li>• <strong>Formatos suportados para reprodução:</strong> Apenas MP4</li>
+              <li>• <strong>Formatos aceitos para upload:</strong> MP4, AVI, MOV, WMV, FLV, WebM, MKV, etc.</li>
+              <li>• <strong>Indicadores visuais:</strong></li>
+              <li>&nbsp;&nbsp;- 🟢 Verde: MP4 compatível e dentro do limite de bitrate</li>
+              <li>&nbsp;&nbsp;- 🔴 Vermelho: Formato não-MP4 OU bitrate acima do limite</li>
+              <li>&nbsp;&nbsp;- ⚠️ Botões desabilitados: Para vídeos que não podem ser reproduzidos</li>
             </ul>
           </div>
         </div>

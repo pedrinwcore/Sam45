@@ -196,7 +196,7 @@ router.post('/convert', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const userLogin = req.user.email ? req.user.email.split('@')[0] : `user_${userId}`;
-    const { video_id, quality, custom_bitrate, custom_resolution } = req.body;
+    const { video_id, quality, custom_bitrate, custom_resolution, use_custom } = req.body;
 
     if (!video_id) {
       return res.status(400).json({ 
@@ -224,11 +224,11 @@ router.post('/convert', authMiddleware, async (req, res) => {
     // Determinar configurações de conversão
     let targetBitrate, targetResolution, qualityLabel;
 
-    if (quality === 'custom') {
+    if (use_custom || quality === 'custom') {
       if (!custom_bitrate || !custom_resolution) {
         return res.status(400).json({ 
           success: false, 
-          error: 'Bitrate e resolução customizados são obrigatórios' 
+          error: 'Bitrate e resolução customizados são obrigatórios para conversão personalizada' 
         });
       }
 

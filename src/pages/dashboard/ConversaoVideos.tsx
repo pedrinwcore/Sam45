@@ -172,13 +172,15 @@ const ConversaoVideos: React.FC = () => {
 
     try {
       const token = await getToken();
-      const requestBody = conversionSettings.use_custom ? {
+      const requestBody = {
         video_id: selectedVideo.id,
-        custom_bitrate: conversionSettings.custom_bitrate,
-        custom_resolution: conversionSettings.custom_resolution
-      } : {
-        video_id: selectedVideo.id,
-        quality: conversionSettings.quality
+        use_custom: conversionSettings.use_custom,
+        ...(conversionSettings.use_custom ? {
+          custom_bitrate: conversionSettings.custom_bitrate,
+          custom_resolution: conversionSettings.custom_resolution
+        } : {
+          quality: conversionSettings.quality
+        })
       };
 
       const response = await fetch('/api/conversion/convert', {
@@ -856,23 +858,19 @@ const ConversaoVideos: React.FC = () => {
               <button
                 onClick={startConversion}
                 disabled={
-                  conversionSettings.use_custom ? 
-                    !conversionSettings.custom_bitrate || (conversionSettings.custom_bitrate > (user?.bitrate || 2500)) :
-                    !qualityPresets.find(p => p.quality === conversionSettings.quality)?.available
+                  !conversionSettings.custom_bitrate || 
+                  !conversionSettings.custom_resolution ||
+                  (conversionSettings.custom_bitrate > (user?.bitrate || 2500))
                 }
                 className={`px-4 py-2 rounded-md disabled:opacity-50 flex items-center ${
-                  conversionSettings.use_custom && conversionSettings.custom_bitrate && conversionSettings.custom_bitrate <= (user?.bitrate || 2500) ?
-                    'bg-green-600 text-white hover:bg-green-700' :
-                    !conversionSettings.use_custom && qualityPresets.find(p => p.quality === conversionSettings.quality)?.available ?
+                  conversionSettings.custom_bitrate && conversionSettings.custom_bitrate <= (user?.bitrate || 2500) ?
                     'bg-green-600 text-white hover:bg-green-700' :
                     'bg-gray-400 text-gray-200 cursor-not-allowed'
                 }`}
               >
                 <Settings className="h-4 w-4 mr-2" />
-                {conversionSettings.use_custom && conversionSettings.custom_bitrate && conversionSettings.custom_bitrate <= (user?.bitrate || 2500) ?
+                {conversionSettings.custom_bitrate && conversionSettings.custom_bitrate <= (user?.bitrate || 2500) ?
                   `Converter para ${conversionSettings.custom_bitrate} kbps` :
-                  !conversionSettings.use_custom && qualityPresets.find(p => p.quality === conversionSettings.quality)?.available ?
-                  'Iniciar Conversão' :
                   'Configuração Inválida'
                 }
               </button>

@@ -133,6 +133,10 @@ router.get('/', authMiddleware, async (req, res) => {
       // Verificar se bitrate excede o limite
       const currentBitrate = video.bitrate_video || 0;
       const bitrateExceedsLimit = currentBitrate > userBitrateLimit;
+      
+      // Verificar se formato é incompatível (não é MP4)
+      const formatIncompatible = !video.is_mp4 || video.is_mp4 === 0;
+      
       return {
         id: video.id,
         nome: video.nome,
@@ -146,7 +150,8 @@ router.get('/', authMiddleware, async (req, res) => {
         folder: folderName,
         user: userLogin,
         user_bitrate_limit: userBitrateLimit,
-        bitrate_exceeds_limit: bitrateExceedsLimit
+        bitrate_exceeds_limit: bitrateExceedsLimit,
+        format_incompatible: formatIncompatible
       };
     });
 
