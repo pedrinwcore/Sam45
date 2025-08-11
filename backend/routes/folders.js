@@ -108,39 +108,120 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     const folder = folderRows[0];
     const serverId = folder.codigo_servidor || 1;
     const folderName = folder.identificacao;
-    // Verificar se há vídeos na pasta
-    const [videoRows] = await db.execute(
-      'SELECT COUNT(*) as count FROM playlists_videos WHERE path_video LIKE ?',
-      [`%/${userLogin}/${folderName}/%`]
-    );
-
-    if (videoRows[0].count > 0) {
-      return res.status(400).json({ 
-        error: 'Não é possível excluir pasta que contém vídeos',
-        details: 'Remova todos os vídeos da pasta antes de excluí-la'
-      });
-    }
 
     try {
-      // Remover pasta do servidor via SSH
+      // Remover pasta e todos os vídeos do servidor via SSH
       const remoteFolderPath = `/usr/local/WowzaStreamingEngine/content/${userLogin}/${folderName}`;
       await SSHManager.executeCommand(serverId, `rm -rf "${remoteFolderPath}"`);
       console.log(`✅ Pasta ${folderName} removida do servidor`);
     } catch (sshError) {
       console.warn('Erro ao remover pasta do servidor:', sshError.message);
-      // Continuar mesmo se falhar no servidor
+      return res.status(500).json({ 
+        error: 'Erro ao remover pasta do servidor Wowza',
+        details: sshError.message 
+      });
     }
-    // Remover pasta
+    
+    // Remover todos os vídeos da pasta do banco de dados
+    await db.execute(
+      'DELETE FROM videos WHERE pasta = ? AND codigo_cliente = ?',
+      [folderId, userId]
+    );
+    
+    // Remover pasta do banco
     await db.execute(
       'DELETE FROM streamings WHERE codigo = ? AND codigo_cliente = ?',
       [folderId, userId]
     );
 
-    res.json({ success: true, message: 'Pasta removida com sucesso' });
+    res.json({ 
+      success: true, 
+      message: 'Pasta e todos os vídeos removidos com sucesso do servidor e banco de dados' 
+    });
   } catch (err) {
     console.error('Erro ao remover pasta:', err);
     res.status(500).json({ error: 'Erro ao remover pasta', details: err.message });
   }
 });
 
+// PUT /api/folders/:id - Atualiza pasta
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const folderId = req.params.id;
+    const { nome } = req.body;
+    const userId = req.user.id;
+    const userLogin = req.user.email.split('@')[0];
+
+    if (!nome || !nome.trim()) {
+      return res.status(400).json({ error: 'Nome da pasta é obrigatório' });
+    if (folderRows.length === 0) {
+      return res.status(404).json({ error: 'Pasta não encontrada' });
+    }
+    }
+    const folder = folderRows[0];
+    const serverId = folder.codigo_servidor || 1;
+    const oldFolderName = folder.identificacao;
+    const newFolderName = nome.trim();
+
+    // Se o nome não mudou, não fazer nada
+    if (oldFolderName === newFolderName) {
+      return res.json({ success: true, message: 'Nome da pasta não foi alterado' });
+    }
+    // Verificar se a pasta pertence ao usuário
+    try {
+      // Renomear pasta no servidor via SSH
+      const oldRemotePath = `/usr/local/WowzaStreamingEngine/content/${userLogin}/${oldFolderName}`;
+      const newRemotePath = `/usr/local/WowzaStreamingEngine/content/${userLogin}/${newFolderName}`;
+      
+      // Verificar se pasta antiga existe
+      const checkCommand = `test -d "${oldRemotePath}" && echo "EXISTS" || echo "NOT_EXISTS"`;
+      const checkResult = await SSHManager.executeCommand(serverId, checkCommand);
+      
+      if (checkResult.stdout.includes('EXISTS')) {
+        // Renomear pasta no servidor
+        await SSHManager.executeCommand(serverId, `mv "${oldRemotePath}" "${newRemotePath}"`);
+        console.log(`✅ Pasta renomeada no servidor: ${oldFolderName} -> ${newFolderName}`);
+      } else {
+        console.warn(`Pasta ${oldFolderName} não existe no servidor, criando nova`);
+        await SSHManager.createUserFolder(serverId, userLogin, newFolderName);
+      }
+    } catch (sshError) {
+      console.error('Erro ao renomear pasta no servidor:', sshError.message);
+      return res.status(500).json({ 
+        error: 'Erro ao renomear pasta no servidor Wowza',
+        details: sshError.message 
+      });
+    }
+    const [folderRows] = await db.execute(
+    // Atualizar nome da pasta no banco
+    await db.execute(
+      'UPDATE streamings SET identificacao = ? WHERE codigo = ? AND codigo_cliente = ?',
+      [newFolderName, folderId, userId]
+    );
+      'SELECT codigo, identificacao, codigo_servidor FROM streamings WHERE codigo = ? AND codigo_cliente = ?',
+    // Atualizar caminhos dos vídeos no banco se necessário
+    await db.execute(
+      `UPDATE videos SET 
+        url = REPLACE(url, ?, ?),
+        caminho = REPLACE(caminho, ?, ?)
+       WHERE pasta = ? AND codigo_cliente = ?`,
+      [
+        `/${userLogin}/${oldFolderName}/`, `/${userLogin}/${newFolderName}/`,
+        `/${userLogin}/${oldFolderName}/`, `/${userLogin}/${newFolderName}/`,
+        folderId, userId
+      ]
+    );
+      [folderId, userId]
+    res.json({ 
+      success: true, 
+      message: 'Pasta renomeada com sucesso no servidor e banco de dados',
+      old_name: oldFolderName,
+      new_name: newFolderName
+    });
+  } catch (err) {
+    console.error('Erro ao atualizar pasta:', err);
+    res.status(500).json({ error: 'Erro ao atualizar pasta', details: err.message });
+  }
+});
+    );
 module.exports = router;
